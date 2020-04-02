@@ -10,4 +10,4 @@ To get working:
 4. `cd deploy`
 5. `python -m http.server`
 6. visit the web browser
-7. open up the console and issue `load_json("output.json");` where you point to the json file produced by run. LOL. ok need to make this better in the future obviously.
+7. enter name of the json file in the box and click load. Ok this is a bit janky LOL. Ah well.
