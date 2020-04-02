@@ -1,0 +1,408 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>GitStats</title>
+
+  <!-- Favicon -->
+  <!-- <link rel="shortcut icon" type="image/png" href="favicon.png" /> -->
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans:300" rel="stylesheet">
+
+  <!-- JS -->
+  <script src="https://code.jquery.com/jquery-3.3.1.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
+  <script src="https://d3js.org/d3.v5.min.js"></script>
+
+  <style>
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    margin: 0;
+    padding: 0;
+  }
+  .commit {
+    border: 1px solid black;
+    margin: 10px;
+    margin-bottom: 10px;
+  }
+  .cid {
+    background-color: #fee;
+    padding: 5px;
+    display: inline-block;
+    /* font-family: "Courier New", Courier, monospace; */
+  }
+  .cauthor {
+    background-color: #efe;
+    padding: 5px;
+    display: inline-block;
+  }
+  .cemail {
+    background-color: #efe;
+    padding: 5px;
+    display: inline-block;
+    font-weight: bold;
+  }
+  .cbranch{
+    background-color: #ffe;
+    padding: 5px;
+    display: inline-block;
+  }
+  .ctime {
+    background-color: #eef;
+    padding: 5px;
+    display: inline-block;
+  }
+  .inl{
+    display: inline-block;
+    padding: 5px;
+  }
+  .ctotal {
+    background-color: #eee;
+    border: 10px solid #eee;
+    font-family: "Courier New", Courier, monospace;
+    font-size: 18px;
+  }
+  .ins {
+    background-color: #dfd;
+    color: #464;
+    padding: 5px 10px 5px 10px;
+  }
+  .del{
+    background-color: #fdd;
+    color: #644;
+    padding: 5px 10px 5px 10px;
+  }
+  .lin {
+    background-color: #ffd;
+    color: #444;
+    padding: 5px 10px 5px 10px;
+  }
+  .fil {
+    background-color: #ffd;
+    color: #444;
+    padding: 5px 10px 5px 10px;
+  }
+  .cmsg {
+    padding: 10px;
+    background-color: #eee;
+    font-size: 16px;
+    border-top: 1px solid #555;
+  }
+  .cfiles {
+    font-family: "Courier New", Courier, monospace;
+    font-size: 14px;
+    border-left: 10px solid #eee;
+  }
+  .fins {
+    background-color: #dfd;
+    color: #464;
+    width: 50px;
+    text-align: right;
+  }
+  .fdel{
+    background-color: #fdd;
+    color: #644;
+    width: 50px;
+    text-align: right;
+  }
+  #ui {
+    padding: 20px;
+    background-color: #f53;
+    color: white;
+    font-size: 18px;
+  }
+  input[type=text] {
+    padding: 5px;
+    border:none;
+    border-radius: 5px;
+    -webkit-appearance: none;
+  }
+  .button {
+    background-color: #555555;
+    border: none;
+    color: white;
+    padding: 7px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+  }
+  h1 {
+    font-family: 'Open Sans', sans-serif;
+    text-align: center;
+    font-weight: 300;
+    margin: 0 0 10px 0;
+    padding: 0 0 20px 0;
+    border-bottom: 1px solid #fff;
+  }
+  pre {
+    margin: 0;
+    padding: 0;
+    /* wrap pre tag when width is low */
+    white-space: pre-wrap;       /* Since CSS 2.1 */
+    white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+    white-space: -pre-wrap;      /* Opera 4-6 */
+    white-space: -o-pre-wrap;    /* Opera 7 */
+    word-wrap: break-word;       /* Internet Explorer 5.5+ */
+  }
+  .umsg {
+    background-color: #ffa;
+    padding: 5px 10px 5px 10px;
+    border-bottom: 1px solid #cc8;
+  }
+  .checkmark {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 25px;
+    width: 25px;
+    background-color: #eee;
+  }
+  .undiv {
+    height: 20px;
+    width: 200px;
+    background-color: #eee;
+    text-align: right;
+    display: inline-block;
+    margin-bottom: 2px;
+    padding-right: 2px;
+  }
+  .ubox {
+    display: inline-block;
+    height: 20px;
+    width: 20px;
+    background-color: #eee;
+    margin-left: 2px;
+    text-align: center;
+    font-size: 14px;
+  }
+  #contributors {
+    margin: 10px;
+    border: 1px solid #555;
+  }
+  </style>
+
+  <script>
+
+  var DAYSTATS = {};
+  var STATS = {};
+  var USERS = {};
+  var COMMITS = [];
+  var DTMAX = 0;
+
+  function tr(t) {
+    var offset = -7; // UTC PST time offset? (TODO: CONFIRM. should be -8 I think...)
+    var date = new Date(t * 1000 + offset * 3600 * 1000);
+    var dateString = date.toUTCString().replace( /GMT$/, "PST" );
+    return dateString;
+  }
+
+  // day signature
+  function tsig(t) {
+    var offset = -7; // UTC PST time offset? (TODO: CONFIRM. should be -8 I think...)
+    var date = new Date(t * 1000 + offset * 3600 * 1000);
+    return {'d': date.getDate(), 'm': date.getMonth(), 'wd': date.getDay() };
+  }
+
+  function render_commit(pdiv, c) {
+
+    // let's render some commit metadata
+    var cdiv = pdiv.append('div').classed('commit', true);
+    cdiv.append('div').html(c.email).classed('cemail', true);
+    cdiv.append('div').html("(" + c.name + ")").classed('cauthor', true);
+    cdiv.append('div').html(c.branch).classed('cbranch', true);
+    if(c.authored_date !== c.committed_date) {
+      cdiv.append('div').html(tr(c.authored_date) + ', ' + tr(c.committed_date)).classed('ctime', true);
+    } else {
+      cdiv.append('div').html(tr(c.authored_date)).classed('ctime', true);
+    }
+    cdiv.append('div').classed('cid', true).append('a').attr('href', c.idlink).append('div').html(c.id);
+    cdiv.append('div').append('pre').html(c.message).classed('cmsg', true);
+
+    // render files
+    var fdiv = cdiv.append('div').classed('cfiles', true);
+    var nfiles = 0;
+    var nfiles_cutoff = 25;
+    for(var f in c.files) {
+      if (c.files.hasOwnProperty(f)) {
+         var v = c.files[f];
+         nfiles++;
+
+         // render
+         if(nfiles <= nfiles_cutoff) {
+           var qdiv = fdiv.append('div');
+           qdiv.append('div').classed('inl', true).classed('fins', true).html('+ ' + v.insertions);
+           qdiv.append('div').classed('inl', true).classed('fdel', true).html('- ' + v.deletions);
+           // apply color based on filename
+           var col = "#aaa";
+           if(f.endsWith(".py") || f.endsWith(".cpp") || f.endsWith(".hpp") || f.endsWith(".cu") || f.endsWith(".cl")) { col = "black"; }
+           if(f.endsWith(".yml") || f.endsWith(".yaml")) { col = "#aaa"; }
+           if(f.endsWith(".jsx") || f.endsWith(".js")) { col = "blue"; }
+           if(f.includes("pb2.py")) { col = "#aaa"; }
+           qdiv.append('div').html(f).classed('inl', true).attr("style", "color:" + col);
+        }
+
+        // keep stats
+        // var iscode = f.endsWith(".py") || f.endsWith(".cpp") || f.endsWith(".hpp")
+        //           || f.endsWith(".cu") || f.endsWith(".cl") || f.endsWith(".js") || f.endsWith(".jsx");
+        // if(iscode) {
+        //   STATS[u].n += 1;
+        //   STATS[u].ins += v.insertions;
+        //   STATS[u].del += v.deletions;
+        // }
+        //
+      }
+    }
+    if(nfiles > nfiles_cutoff) {
+      fdiv.append('div').html('... (' + (nfiles - nfiles_cutoff) + ') more.');
+    }
+
+    // pretty print totals
+    var tdiv = cdiv.append('div').classed('ctotal', true);
+    tdiv.append('div').classed('inl', true).classed('ins', true).html('insertions: ' + c.total.insertions);
+    tdiv.append('div').classed('inl', true).classed('del', true).html('deletions: ' + c.total.deletions);
+    tdiv.append('div').classed('inl', true).classed('lin', true).html('lines: ' + c.total.lines);
+    tdiv.append('div').classed('inl', true).classed('fil', true).html('files: ' + c.total.files);
+
+  }
+
+  function satisfies_filter(c, f) {
+    if(f === "") { return true; }
+    var fl = f.toLowerCase();
+    var emailyn = c.email.toLowerCase().includes(fl);
+    var nameyn = c.name.toLowerCase().includes(fl);
+    return emailyn || nameyn;
+  }
+
+  function render_commits(commits, filter) {
+
+    // filter down commits based on a filter
+    var fcommits = [];
+    for(var i=0;i<commits.length;i++) {
+      var c = commits[i];
+      var ok = satisfies_filter(c, filter);
+      if(ok) {
+        fcommits.push(c);
+      }
+    }
+    var n = fcommits.length;
+
+    // process stats
+    var MINT = null;
+    var MAXT = null;
+    for(var i=0;i<fcommits.length;i++) {
+      var c = fcommits[i];
+      if(MINT === null || c.authored_date < MINT) { MINT = c.authored_date; }
+      if(MAXT === null || c.authored_date > MAXT) { MAXT = c.authored_date; }
+    }
+    var nd = Math.ceil((MAXT - MINT) / 60 / 60 / 24); // number of days of data
+
+    STATS = {};
+    USERS = {};
+    var GUSERS = {};
+    for(var i=0;i<fcommits.length;i++) {
+      var c = fcommits[i];
+      if(c.total.insertions < 5 && c.total.deletions < 5) { continue; } // not a substantial commit, skip
+      var atix = c.email.indexOf("@");
+      var u = c.email.substring(0, atix).toLowerCase();
+      if(!USERS.hasOwnProperty(u)) { USERS[u] = 1; } // \__o--\
+      var iix = Math.floor((c.authored_date - MINT) / (MAXT - MINT) * nd);
+      var key = u + '-' + iix;
+      if(!STATS.hasOwnProperty(key)) { STATS[key] = 0; }
+      STATS[key] += 1;
+      if(!GUSERS.hasOwnProperty(u)) { GUSERS[u] = 0; }
+      GUSERS[u] += 1;
+    }
+
+    var arr = [];
+    for(var u in GUSERS) {
+      if(!GUSERS.hasOwnProperty(u)) { continue; }
+      arr.push({'u':u, 'n':GUSERS[u]});
+    }
+    arr.sort(function(a, b){
+        return b.n - a.n;
+    });
+
+    // var tt = tsig(c.authored_date);
+    // var sig = tt.d + '/' + tt.m;
+    // var key = sig + '-' + u;
+    // if(!STATS.hasOwnProperty(key)) { STATS[key] = {'nc':0, 'n':0, 'ins':0, 'del':0}; }
+    // STATS[key].nc += 1;
+
+    // render commit objects
+    var max_show = 200;
+    var to_show = Math.min(max_show, fcommits.length);
+    var cdiv = d3.select("#wrap");
+    cdiv.html("");
+    for(var i=0;i<to_show;i++) {
+      var c = fcommits[i];
+      render_commit(cdiv, c);
+    }
+
+    // render the contributions graph
+    var condiv = d3.select("#contributors");
+    condiv.html("");
+    for(var j=0;j<arr.length;j++) {
+      var u = arr[j].u;
+      var udiv = condiv.append('div').classed('udiv', true);
+      var un = udiv.append('div').classed('undiv', true).html(u);
+      for(var i=0;i<nd;i++) {
+        var key = u + '-' + i;
+        var nc = STATS[key];
+        if(typeof nc === 'undefined') { nc = 0; }
+        var rbcol = Math.max(0, 255 - nc * 50);
+        var col = 'rgb(' + rbcol + ',255,' + rbcol + ')';
+        udiv.append('div').classed('ubox', true).attr('style', 'background-color:' + col).html(nc);
+      }
+    }
+
+    // render the message up top reporting the total number of commits displayed
+    var msg = "Showing " + n + " results.";
+    if(filter === "" && (typeof DTMAX !== "undefined")) {
+      msg += " (over last " + DTMAX + " days)";
+    }
+    d3.select("#msg").html(msg);
+
+  }
+
+  function filter() {
+    var txt = $("#txtfilt").val();
+    render_commits(COMMITS, txt);
+  }
+
+  function load_json(jpath) {
+    $.getJSON(jpath, function(data) {
+      COMMITS = data.commits;
+      DTMAX = data.dtmax;
+      render_commits(COMMITS, "");
+    });
+  }
+
+  $(document).ready(function(){
+
+    // bind enter key inside search box
+    $("#txtfilt").on('keyup', function(e) {
+        console.log(e);
+        if(e.keyCode == 13) { filter(); }
+    });
+
+  });
+
+  </script>
+
+</head>
+
+<body>
+  <div id="ui">
+    <button type="button" class="button" onclick="load_json()">Load</button>
+    <div style="margin: 0 5px 0 5px; display:inline-block;">|</div>
+    <div style="display:inline-block; font-size:20px;">Filter</div>
+    <input type="text" name="efilter" style="height:20px; width:250px;" id="txtfilt">
+  </div>
+  <div id="msg" class="umsg"></div>
+  <div id="contributors"></div>
+  <div id="wrap"></div>
+</body>
+
+</html>
